@@ -10,15 +10,18 @@ import (
 type AccountsAdapterInterface interface {
 	UserPermissionsMapRedisFromSql(resp *[]db.UserPermissionsMapRow) (*redisclient.PermissionsMap, error)
 	AuttSessionRedisFromGrpc(response *devkitv1.AuthLoginResponse, ipAddress string, userAgent string) (*redisclient.AuthSession, error)
-	AuthLoginSqlFromGrpc(req *devkitv1.AuthLoginRequest) (*db.UserFindParams, *types.TokenRequest)
+	AuthLoginSqlFromGrpc(req *devkitv1.AuthLoginRequest) (*db.UserFindForAuthParams, *types.TokenRequest)
 	UserCreateUpdateRequestFromAuthRegister(req *devkitv1.AuthRegisterRequest) *devkitv1.UserCreateUpdateRequest
 	AuthSessionListGrpcFromRedis(resp []*redisclient.AuthSession) *devkitv1.AuthSessionListResponse
 	AuthResetPasswordSupaFromGrpc(req *devkitv1.AuthResetPasswordRequest) *types.VerifyForUserRequest
 	AuthLoginGrpcFromSql(resp *db.AccountsSchemaUserView) *devkitv1.AuthLoginResponse
 	UserNavigationBarFindGrpcFromSql(dbResponse []db.UserNavigationBarFindRow) ([]*devkitv1.NavigationBarItem, error)
 	UserCreateUpdateGrpcFromSql(resp *db.AccountsSchemaUser) *devkitv1.UserCreateUpdateResponse
+	UserFindRowGrpcFromSql(resp *db.UserFindRow) *devkitv1.UserFindRow
+	UserSessionsGrpcFropmSql(sessions []*redisclient.AuthSession) []*devkitv1.UserSession
 	UserFindForUpdateUpdateGrpcFromSql(resp *db.UserFindForUpdateRow) *devkitv1.UserCreateUpdateRequest
 	UserTypeListInputGrpcFromSql(resp *[]db.UserTypeListInputRow) *devkitv1.UserTypeListInputResponse
+	UserPermissionListInputGrpcFromSql(resp *[]db.UserPermissionListInputRow) *devkitv1.UserPermissionListInputResponse
 	UserListInputGrpcFromSql(resp *[]db.UserListInputRow) *devkitv1.UserListInputResponse
 	NavigationBarItemGrpcFromSql(resp *db.UserNavigationBarFindRow) *devkitv1.NavigationBarItem
 	UserListGrpcFromSql(resp *[]db.AccountsSchemaUserView) *devkitv1.UserListResponse
@@ -27,7 +30,7 @@ type AccountsAdapterInterface interface {
 	UserEntityGrpcFromSql(resp *db.AccountsSchemaUser) *devkitv1.AccountsSchemaUser
 	RoleFindForUpdateUpdateGrpcFromSql(resp *db.RoleFindForUpdateRow) *devkitv1.RoleCreateUpdateRequest
 	RoleListInputGrpcFromSql(resp *[]db.RoleListInputRow) *devkitv1.RoleListInputResponse
-	RoleListGrpcFromSql(resp *[]db.AccountsSchemaRole) *devkitv1.RoleListResponse
+	RoleListGrpcFromSql(resp *[]db.RoleListRow) *devkitv1.RoleListResponse
 	RoleEntityGrpcFromSql(resp *db.AccountsSchemaRole) *devkitv1.AccountsSchemaRole
 	RoleCreateUpdateSqlFromGrpc(req *devkitv1.RoleCreateUpdateRequest) *db.RoleCreateUpdateParams
 	RoleCreateUpdateGrpcFromSql(resp *db.AccountsSchemaRole) *devkitv1.RoleCreateUpdateResponse

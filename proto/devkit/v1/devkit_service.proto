@@ -78,6 +78,10 @@ service DevkitService {
 
   rpc TenantDeleteRestore(TenantDeleteRestoreRequest) returns (TenantDeleteRestoreResponse) {}
 
+
+  rpc TenantDashboard(TenantDashboardRequest) returns (TenantDashboardResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   rpc TenantFind(TenantFindRequest) returns (TenantFindResponse) {
     option (skip_authentication) = true;
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -192,11 +196,16 @@ service DevkitService {
   rpc UserList(UserListRequest) returns (UserListResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+
   rpc UserListInput(UserListInputRequest) returns (UserListInputResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (skip_authorization) = true;
   }
 
+  rpc UserPermissionListInput(UserPermissionListInputRequest) returns (UserPermissionListInputResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (skip_authorization) = true;
+  }
   rpc UserTypeListInput(UserTypeListInputRequest) returns (UserTypeListInputResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (skip_authorization) = true;
@@ -249,16 +258,16 @@ service DevkitService {
   }
 
   rpc AuthSessionList(AuthSessionListRequest) returns (AuthSessionListResponse) {
-    option (permission_group) = 'auth';
+    option (permission_group) = 'session';
     option (permission_name) = 'SessionList';
   }
 
   rpc AuthSessionSetBlocked(AuthSessionSetBlockedRequest) returns (AuthSessionSetBlockedResponse) {
-    option (permission_group) = 'auth';
-    option (permission_name) = 'SessionSetBlocked';
+    option (permission_group) = 'session';
+    option (permission_name) = 'SessionUpdate';
   }
   rpc AuthSessionDelete(AuthSessionDeleteRequest) returns (AuthSessionDeleteResponse) {
-    option (permission_group) = 'auth';
+    option (permission_group) = 'session';
     option (permission_name) = 'SessionDelete';
   }
 

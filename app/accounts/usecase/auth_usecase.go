@@ -80,6 +80,7 @@ func (u *AccountsUsecase) AuthLogout(
 		log.Error().Err(err).Msg("failed to delete redis auth session")
 	}
 
+	log.Debug().Interface("ful", payload).Interface("payload", payload.ID.String()).Interface("user", payload.UserId).Err(err).Msg("failed to delete redis auth session")
 	// Revoke Supabase session
 	err = u.supaapi.AuthClient.WithToken(supabaseToken).Logout()
 	if err != nil {
@@ -103,15 +104,24 @@ func (u *AccountsUsecase) AuthRefreshToken(
 	// // 1. Validate refresh token
 	payload, err := u.tokenMaker.VerifyRefreshToken(refreshToken)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("invalid refresh token"))
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("invalid refresh token : %w", err))
 	}
 	user, err := u.repo.UserFindForToken(ctx, &db.UserFindForTokenParams{UserID: payload.UserId})
-	loginInfo, _, err := u.UserGenerateTokens(
-		user.UserEmail,
-		user.UserID,
-		user.TenantID.Int32,
-		user.UserSecurityLevel,
-	)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("failed to fetch user from db : %w", err))
+	}
+	response := &devkitv1.AuthLoginResponse{
+		LoginInfo: &devkitv1.LoginInfo{},
+		User:      &devkitv1.AccountsSchemaUserView{UserId: user.UserID, TenantId: user.TenantID.Int32, UserSecurityLevel: user.UserSecurityLevel},
+	}
+
+	err = u.WithTokens(ctx, req.Peer().Addr, req.Header().Get("User-Agent"), user.UserEmail, response, "", "")
+	// loginInfo, _, err := u.UserGenerateTokens(
+	// 	user.UserEmail,
+	// 	user.UserID,
+	// 	user.TenantID.Int32,
+	// 	user.UserSecurityLevel,
+	// )
 	// // 2. Generate new tokens
 	if err != nil {
 		return nil, err
@@ -119,10 +129,10 @@ func (u *AccountsUsecase) AuthRefreshToken(
 
 	// // 3. Return new tokens
 	return &devkitv1.AuthRefreshTokenResponse{
-		LoginInfo: loginInfo,
+		LoginInfo: response.LoginInfo,
 	}, nil
 }
-func (u *AccountsUsecase) UserGenerateTokens(username string, userId int32, tenantId int32, userSecurityLevel int32) (*devkitv1.LoginInfo, string, error) {
+func (u *AccountsUsecase) UserGenerateTokens(username string, userId int32, tenantId int32, userSecurityLevel int32) (*devkitv1.LoginInfo, string, string, error) {
 	tokens, err := u.tokenMaker.CreateTokenPair(
 		username,
 		userId,
@@ -132,18 +142,18 @@ func (u *AccountsUsecase) UserGenerateTokens(username string, userId int32, tena
 		u.refreshTokenDuration, // Refresh token TTL
 	)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	return &devkitv1.LoginInfo{
 		AccessToken:           tokens.AccessToken,
 		RefreshToken:          tokens.RefreshToken,
 		AccessTokenExpiresAt:  db.TimeToString(tokens.AccessPayload.ExpiredAt),
 		RefreshTokenExpiresAt: db.TimeToString(tokens.RefreshPayload.ExpiredAt),
-	}, tokens.AccessPayload.ID.String(), nil
+	}, tokens.RefreshPayload.ID.String(), tokens.AccessPayload.ID.String(), nil
 }
 
 func (u *AccountsUsecase) AppLogin(ctx context.Context, loginCode string, userId int32) (*devkitv1.AuthLoginResponse, error) {
-	user, err := u.repo.UserFind(ctx, db.UserFindParams{SearchKey: loginCode, UserID: userId})
+	user, err := u.repo.UserFindForAuth(ctx, db.UserFindForAuthParams{SearchKey: strings.ToLower(loginCode), UserID: userId})
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +233,7 @@ func (u *AccountsUsecase) WithNavigationBar(ctx context.Context, response *devki
 	return nil
 }
 func (u *AccountsUsecase) WithTokens(ctx context.Context, addr string, userAgent string, loginCode string, response *devkitv1.AuthLoginResponse, supaToken string, supaRefreshToken string) error {
-	loginInfo, tokenID, err := u.UserGenerateTokens(loginCode, response.User.UserId, response.User.TenantId, response.User.UserSecurityLevel)
+	loginInfo, tokenID, accessTokenId, err := u.UserGenerateTokens(loginCode, response.User.UserId, response.User.TenantId, response.User.UserSecurityLevel)
 	if err != nil {
 		return err
 	}
@@ -235,10 +245,11 @@ func (u *AccountsUsecase) WithTokens(ctx context.Context, addr string, userAgent
 		return err
 	}
 	authSession.TokenID = tokenID
-	err = u.redisClient.AuthSessionDeleteByUserAgent(ctx, authSession.UserID, authSession.UserAgent)
-	if err != nil {
-		return err
-	}
+	authSession.AccessTokenID = accessTokenId
+	// err = u.redisClient.AuthSessionDeleteByUserAgent(ctx, authSession.UserID, authSession.UserAgent)
+	// if err != nil {
+	// 	return err
+	// }
 	err = u.redisClient.AuthSessionCreate(ctx, authSession, tokenID, u.refreshTokenDuration)
 	if err != nil {
 		return err

@@ -7,6 +7,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/darwishdev/devkit-api/db"
+	"github.com/darwishdev/devkit-api/pkg/dateutils"
 	devkitv1 "github.com/darwishdev/devkit-api/proto_gen/devkit/v1"
 	"github.com/google/uuid"
 	"github.com/supabase-community/auth-go/types"
@@ -61,12 +62,23 @@ func (u *AccountsUsecase) UserFindForUpdate(ctx context.Context, req *connect.Re
 }
 
 func (u *AccountsUsecase) UserFind(ctx context.Context, req *connect.Request[devkitv1.UserFindRequest]) (*devkitv1.UserFindResponse, error) {
-	user, err := u.repo.UserFind(ctx, db.UserFindParams{UserID: req.Msg.RecordId})
+	user, err := u.repo.UserFind(ctx, req.Msg.RecordId)
 	if err != nil {
 		return nil, err
 	}
+
+	record := u.adapter.UserFindRowGrpcFromSql(user)
+	sessions, err := u.redisClient.AuthSessionListByUser(ctx, req.Msg.RecordId)
+	if err != nil {
+		return nil, err
+	}
+	if len(sessions) > 0 {
+		latestSession := sessions[0]
+		record.LastLogIn = dateutils.DateTimeToStringDigit(latestSession.CreatedAt)
+	}
 	return &devkitv1.UserFindResponse{
-		Record: u.adapter.UserViewEntityGrpcFromSql(user),
+		Record:   record,
+		Sessions: u.adapter.UserSessionsGrpcFropmSql(sessions),
 	}, nil
 }
 func (u *AccountsUsecase) UserTypeListInput(ctx context.Context) (*devkitv1.UserTypeListInputResponse, error) {
@@ -75,6 +87,15 @@ func (u *AccountsUsecase) UserTypeListInput(ctx context.Context) (*devkitv1.User
 		return nil, err
 	}
 	response := u.adapter.UserTypeListInputGrpcFromSql(users)
+	return response, nil
+}
+
+func (u *AccountsUsecase) UserPermissionListInput(ctx context.Context, req *connect.Request[devkitv1.UserPermissionListInputRequest]) (*devkitv1.UserPermissionListInputResponse, error) {
+	users, err := u.repo.UserPermissionListInput(ctx)
+	if err != nil {
+		return nil, err
+	}
+	response := u.adapter.UserPermissionListInputGrpcFromSql(users)
 	return response, nil
 }
 func (u *AccountsUsecase) UserListInput(ctx context.Context) (*devkitv1.UserListInputResponse, error) {
